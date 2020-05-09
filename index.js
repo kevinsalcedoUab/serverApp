@@ -50,7 +50,7 @@ app.post('/', function (req, res) {
 
 //LOGIN POST
 //necesita sql injection
-app.post('/login', (req, res) => {
+app.post('/register', (req, res) => {
     var objRecieve = req.body.obj;
     var sql = "INSERT INTO kevdb.user (name, firstName, lastName, email, age, phone, password) VALUES ('" + objRecieve.NAME + "','" + objRecieve.FIRSTNAME + "','" + objRecieve.LASTNAME +"','" + objRecieve.EMAIL +"','"+ objRecieve.AGE +"','" + objRecieve.PHONE +"','"+ objRecieve.PASSWORD+ "')";
     conn.query(sql, function (err, result) {
@@ -60,6 +60,23 @@ app.post('/login', (req, res) => {
     res.status(200).json({
         message: 'success!',
     })
+});
+
+app.post('/login', function (req, res) {
+    var objRecieve = req.body.obj;
+    var sql = "SELECT name, firstName, lastName, email, age, phone, password FROM kevdb.user WHERE  email = ('"+objRecieve.EMAIL +"')";
+    conn.query(sql, function (err, result) {
+        if (err){
+            console.log('err: ', err);
+            res.status(500).json({
+                message: 'Something has gone wrong :(',
+            })
+        }else{
+            console.log(req.body.obj);
+            console.log('res: ', result);
+            res.status(200).json(result);
+        }
+    });
 });
 
 app.post('/route', function(req, res){
