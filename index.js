@@ -2,9 +2,9 @@ const express = require('express');
 const app = express();
 const path = require('path');
 const morgan = require('morgan');
-const server = require(__dirname + '/config/server.js')
 const mysql = require('mysql');
 const bodyParser = require("body-parser");
+const socket = require('socket.io')
 
 
 const conn = mysql.createConnection({
@@ -52,7 +52,7 @@ app.post('/', function (req, res) {
 //necesita sql injection
 app.post('/register', (req, res) => {
     var objRecieve = req.body.obj;
-    var sql = "INSERT INTO kevdb.user (name, firstName, lastName, email, age, phone, password) VALUES ('" + objRecieve.NAME + "','" + objRecieve.FIRSTNAME + "','" + objRecieve.LASTNAME +"','" + objRecieve.EMAIL +"','"+ objRecieve.AGE +"','" + objRecieve.PHONE +"','"+ objRecieve.PASSWORD+ "')";
+    var sql = "INSERT INTO kevdb.user (name, firstName, lastName, email, age, phone, password, type) VALUES ('" + objRecieve.NAME + "','" + objRecieve.FIRSTNAME + "','" + objRecieve.LASTNAME +"','" + objRecieve.EMAIL +"','"+ objRecieve.AGE +"','" + objRecieve.PHONE +"','"+ objRecieve.PASSWORD+ "','Client')";
     conn.query(sql, function (err, result) {
         if (err) throw err;
         console.log("record inserted" + result.insertId);
@@ -64,7 +64,7 @@ app.post('/register', (req, res) => {
 
 app.post('/login', function (req, res) {
     var objRecieve = req.body.obj;
-    var sql = "SELECT name, firstName, lastName, email, age, phone, password FROM kevdb.user WHERE  email = ('"+objRecieve.EMAIL +"')";
+    var sql = "SELECT iduser, name, firstName, lastName, email, age, phone, password, type, listFriends, idGroup FROM kevdb.user WHERE  email = ('"+objRecieve.EMAIL +"')";
     conn.query(sql, function (err, result) {
         if (err){
             console.log('err: ', err);
@@ -80,17 +80,32 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/route', function(req, res){
-    //res.send('Route has been send successfully!!!');
-    console.log("ROUTE origin lat: "+ req.body.OR_latitude + '--  long: ' + req.body.OR_longitude);
-    console.log("ROUTE desti lat: "+ req.body.DT_latitude + '--  long: ' + req.body.DT_longitude);
+    console.log("ROUTE origin lat: "+ req.body.OR_latitude + ' --  long: ' + req.body.OR_longitude);
+    console.log("ROUTE desti lat: "+ req.body.DT_latitude + ' --  long: ' + req.body.DT_longitude);
     res.status(200).json({
         message: 'Route has been send successfully!!!',
     })
 });
 
-app.listen(3000, ()=> {
+var server = app.listen(3000, ()=> {
     console.log("Functional server");
     console.log("App name: "+ app.get('appName'));
     console.log("App language: "+ app.get('language'));
     console.log("App country: "+ app.get('country'));
 });
+
+var io = socket(server);
+var clients = {};
+io.sockets.on('connection', newConnection);
+
+function newConnection(socket){
+    console.log("new connection: "+socket.id);
+    console.log("query: " + socket.handshake.query.userClient);
+    var idClient = socket.handshake.query.userClient;
+    clients = Object.assign(clients, {[idClient]: socket.id})
+    console.log("clients: ", clients);
+    socket.on("chat message", (data) => {
+        console.log('mensaje:' + data.msg + ' From:' + idClient + ' To:' +data.idSend);
+        io.to(clients[data.idSend]).emit("chat message", data.msg);
+    });
+};
