@@ -104,8 +104,54 @@ function newConnection(socket){
     var idClient = socket.handshake.query.userClient;
     clients = Object.assign(clients, {[idClient]: socket.id})
     console.log("clients: ", clients);
+    
+    //events 
     socket.on("chat message", (data) => {
         console.log('mensaje:' + data.msg + ' From:' + idClient + ' To:' +data.idSend);
         io.to(clients[data.idSend]).emit("chat message", data.msg);
+    });
+    socket.on("add friend", (data) => {
+        console.log('add friend: User to add: ' + data.msg + ' From: ' + data.ID + ' Name: ' + data.NAME);
+        var sql = "SELECT iduser FROM kevdb.user WHERE  name = ('"+ data.msg +"')";
+        conn.query(sql, function (err, result) {
+            if (err){
+                console.log('err: ', err);
+            }else{
+                if(result.length==0){
+                    console.log("add friend: Request has get empty");
+                    //respuesta al emisor
+                    io.to(clients[data.ID]).emit("add friend", 'Introduce a valid username');
+                }else{
+                    let res = JSON.stringify(result);
+                    let json = JSON.parse(res);
+                    console.log('add friend: To: ', json[0].iduser);
+                    //msg al emisor y user al receptor
+                    io.to(clients[data.ID]).emit("add friend", 'The request has been sent successfully');
+                    //io.to(clients[json[0].iduser]).emit("request friend", {'nameT': data.NAME, 'idT': data.ID});
+                    io.to(clients[json[0].iduser]).emit("request friend", {'nameT': data.NAME, 'idT': data.ID});
+                }
+            }
+        });
+    });
+
+    socket.on("request friend", (data)=>{
+        if(data.msg=='YES'){
+            console.log(data);
+            console.log('request friend: Reciever ' + data.TRANSMITTER + ' has response YES!');
+            //RESPONSE FRIEND
+            //TO RECEIVER 
+            io.to(clients[data.ID]).emit("response friend", {'receiver': true, 'transmitter': false, 'msg': ''});
+            //TO TRANSMITTER
+            io.to(clients[data.IDTRANSMITTER]).emit("response friend", {'receiver': false, 'transmitter': true, 'msg': 'Receiver has response YES'});
+
+
+        }else{
+            console.log('request friend: Transmitter ' + data.TRANSMITTER + ' has response NO!');
+            //RESPONSE FRIEND
+            //TO RECEIVER
+            io.to(clients[data.ID]).emit("response friend", {'receiver': true, 'transmitter': false, 'msg': ''});
+            //TO TRANSMITTER
+            io.to(clients[data.IDTRANSMITTER]).emit("response friend", {'receiver': false, 'transmitter': true, 'msg': 'Receiver has response NO'});
+        }
     });
 };
