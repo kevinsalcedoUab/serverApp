@@ -48,6 +48,28 @@ app.post('/', function (req, res) {
     console.log("post");
   });
 
+
+//DATABASE FUNCTIONS
+function updateData(id, value){
+    var sql = "UPDATE kevdb.user SET listFriends = '" + value + "'WHERE iduser = " + id ;
+    conn.query(sql, function (err, res) {
+        if (err) throw err;
+        console.log("insert was successfull" + res.insertId);
+    });
+};
+
+function selectListFriends(id, resolve){
+    var sql = "SELECT listFriends FROM kevdb.user WHERE  iduser = ('"+ id +"')";
+    conn.query(sql, function (err, res) {
+        if (err) throw err;
+        console.log("ListFriends for : " + id + ' is ');
+        let result = JSON.stringify(res);
+        let json = JSON.parse(result);
+        console.log('hmmm', json[0].listFriends);
+        resolve(json[0].listFriends);
+    });
+};
+
 //LOGIN POST
 //necesita sql injection
 app.post('/register', (req, res) => {
@@ -98,6 +120,19 @@ var io = socket(server);
 var clients = {};
 io.sockets.on('connection', newConnection);
 
+
+function findObjinArrayy(array, obj){
+    var found = false;
+    for(var i = 0; i < array.length; i++) {
+        if (array[i].id == obj.id) {
+                found = true;
+                break;
+        }
+    }
+    return found; 
+}
+
+
 function newConnection(socket){
     console.log("new connection: "+socket.id);
     console.log("query: " + socket.handshake.query.userClient);
@@ -143,7 +178,45 @@ function newConnection(socket){
             io.to(clients[data.ID]).emit("response friend", {'receiver': true, 'transmitter': false, 'msg': ''});
             //TO TRANSMITTER
             io.to(clients[data.IDTRANSMITTER]).emit("response friend", {'receiver': false, 'transmitter': true, 'msg': 'Receiver has response YES'});
-
+            //GET ACTUAL LIST 
+            var p1 = new Promise((resolve, reject)=>{
+                selectListFriends(data.IDTRANSMITTER, resolve)
+            });
+            var p2 = new Promise((resolve, reject)=>{
+                selectListFriends(data.ID, resolve);
+            });
+            Promise.all([p1,p2]).then((values)=>{
+                console.log("values: ",values)
+                //SAVE NEW FRIEND IN BOTH CLIENTS INTO DB
+                var arrayTransmitter = [];
+                var arrayReceiver = [];
+                if(values[0]!=null){
+                    let f = JSON.parse(values[0]);
+                    arrayTransmitter = f;
+                }
+                if(values[1]!=null){
+                    let f = JSON.parse(values[1]);
+                    arrayReceiver = f;
+                }
+                var objT = {'id': data.ID, 'name': data.NAME};
+                var objR = {'id': data.IDTRANSMITTER, 'name': data.TRANSMITTER};
+                var found1 = findObjinArrayy(arrayTransmitter, objT);
+                var found2 = findObjinArrayy(arrayReceiver, objR);
+                if(!found1){
+                    arrayTransmitter.push(objT);
+                }
+                if(!found2){
+                    arrayReceiver.push(objR);    
+                }
+                var jsonTransmitter = JSON.stringify(arrayTransmitter);
+                console.log("JSON TRANS: ", jsonTransmitter);
+                io.to(clients[data.IDTRANSMITTER]).emit("update LFRIENDS", jsonTransmitter);
+                var jsonReceiver = JSON.stringify(arrayReceiver);
+                console.log("JSON RECE: ", jsonReceiver);
+                io.to(clients[data.ID]).emit("update LFRIENDS", jsonReceiver);
+                updateData(data.IDTRANSMITTER, jsonTransmitter);
+                updateData(data.ID, jsonReceiver);
+            });
 
         }else{
             console.log('request friend: Transmitter ' + data.TRANSMITTER + ' has response NO!');
