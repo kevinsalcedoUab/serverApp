@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const mysql = require('mysql');
 const bodyParser = require("body-parser");
 const socket = require('socket.io')
-
+const _ = require('lodash');
 
 const conn = mysql.createConnection({
     host: "localhost",
@@ -51,7 +51,12 @@ app.post('/', function (req, res) {
 
 //DATABASE FUNCTIONS
 function updateData(id, value){
-    var sql = "UPDATE kevdb.user SET listFriends = '" + value + "'WHERE iduser = " + id ;
+    var sql;
+    if(value==null){
+        sql = "UPDATE kevdb.user SET listFriends = (NULL) WHERE iduser = " + id ;
+    }else{
+        sql = "UPDATE kevdb.user SET listFriends = '" + value + "'WHERE iduser = " + id ;
+    }
     conn.query(sql, function (err, res) {
         if (err) throw err;
         console.log("insert was successfull" + res.insertId);
@@ -62,10 +67,9 @@ function selectListFriends(id, resolve){
     var sql = "SELECT listFriends FROM kevdb.user WHERE  iduser = ('"+ id +"')";
     conn.query(sql, function (err, res) {
         if (err) throw err;
-        console.log("ListFriends for : " + id + ' is ');
         let result = JSON.stringify(res);
         let json = JSON.parse(result);
-        console.log('hmmm', json[0].listFriends);
+        console.log('ListFriends of ' + id + ' : ', json[0].listFriends);
         resolve(json[0].listFriends);
     });
 };
@@ -226,5 +230,32 @@ function newConnection(socket){
             //TO TRANSMITTER
             io.to(clients[data.IDTRANSMITTER]).emit("response friend", {'receiver': false, 'transmitter': true, 'msg': 'Receiver has response NO'});
         }
+    });
+
+    socket.on("delete friend", (data) =>{
+        console.log("delete friend: ", data);
+        console.log("delete friend: ", typeof(data.NEWLFRIENDS));
+        if(data.NEWLFRIENDS==0){
+            data.NEWLFRIENDS = null;
+            updateData(data.ID, data.NEWLFRIENDS);
+        }else{
+            let jsonTransmitter = JSON.stringify(data.NEWLFRIENDS);
+            updateData(data.ID, jsonTransmitter);
+        }
+        var p1 = new Promise((resolve, reject)=>{
+            selectListFriends(data.IDFRIEND, resolve);
+        });
+        Promise.all([p1]).then((values)=>{
+            var arr =JSON.parse(values[0]);
+            arr = _.reject(arr, function(el) { return el.id === data.ID; });
+            io.to(clients[data.IDFRIEND]).emit("update LFRIENDS", JSON.stringify(arr));
+            if(arr==0){
+                arr = null;
+                updateData(data.IDFRIEND, arr);
+            }else{
+                let jsonReceiver = JSON.stringify(arr);
+                updateData(data.IDFRIEND, jsonReceiver);
+            }
+        });
     });
 };
