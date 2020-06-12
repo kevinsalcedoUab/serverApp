@@ -63,6 +63,23 @@ function updateData(id, value){
     });
 };
 
+function createGroup(arrID, arrRoute, idMaster, resolve){
+    var sql = "INSERT INTO kevdb.group (nMembers, listMembers, route, idMaster) VALUES ('1', '" + arrID + "', '" + arrRoute + "', '" + idMaster + "')";
+    conn.query(sql, function (err, res) {
+        if (err) throw err;
+        //console.log("insert was successfull" + res.insertId);
+        resolve("exito");
+    });
+};
+
+function deleteGroup(idGroup){
+    var sql = "DELETE FROM kevdb.group WHERE idGroup = " + idGroup;
+    conn.query(sql, function (err, res) {
+        if (err) throw err;
+        console.log("delete was successfull" + res.insertId);
+    });
+}
+
 function updateMembersGroup(id, value){
     var sql;
     if(value==null){
@@ -98,14 +115,7 @@ function selectListMembers(idGroup, resolve){
     });
 };
 
-function createGroup(arrID, arrRoute, idMaster, resolve){
-    var sql = "INSERT INTO kevdb.group (nMembers, listMembers, route, idMaster) VALUES ('1', '" + arrID + "', '" + arrRoute + "', '" + idMaster + "')";
-    conn.query(sql, function (err, res) {
-        if (err) throw err;
-        //console.log("insert was successfull" + res.insertId);
-        resolve("exito");
-    });
-};
+
 
 //function that update the "idGroup" of idUser
 function updateGrouptoUser(idUser, idGroup){
@@ -444,21 +454,22 @@ function newConnection(socket){
         }
         io.to(clients[data.IDMEMBER]).emit("update LMEMBERS", JSON.stringify(data.NEWLMEMBER));
         updateUserGrouptoNull(data.IDMEMBER);
-        /*
-        var p1 = new Promise((resolve, reject)=>{
-            selectListFriends(data.IDMEMBER, resolve);
+    });
+
+    socket.on("delete group", (data) =>{
+        console.log("delete group: ", data);
+        deleteGroup(data.IDGROUP);
+        arrIDs = [];
+        members = data.LMEMBERS;
+        console.log('data mem: ', members);
+        members.forEach(obj => {
+            arrIDs.push(obj.id);                            
         });
-        Promise.all([p1]).then((values)=>{
-            var arr =JSON.parse(values[0]);
-            arr = _.reject(arr, function(el) { return el.id === data.ID; });
-            io.to(clients[data.IDMEMBER]).emit("update LMEMBERS", JSON.stringify(arr));
-            if(arr==0){
-                arr = null;
-                updateData(data.IDMEMBER, arr);
-            }else{
-                let jsonReceiver = JSON.stringify(arr);
-                updateData(data.IDMEMBER, jsonReceiver);
-            }
-        });*/
+        console.log('members ids: ', arrIDs);
+
+        arrIDs.forEach(id => {
+            io.to(clients[id]).emit("delete group", JSON.stringify({'msg': 'your group has been deleted!'}));
+            updateUserGrouptoNull(id);
+        });
     });
 };
